@@ -37,17 +37,16 @@ def getReserveList():
 
 
 if __name__ == '__main__':
-    login()
-    reservationList = getReserveList()
-    oldReservationList = {}
-
     try:
-        oldReservationList = loadCSV("reserve.csv")
-    except FileNotFoundError:
-        pass
-
-    message = compareReservation(oldReservationList, reservationList)
-    sendNotification(token=credential.LINE_TOKEN, message=message)
-    saveCSV("reserve.csv", reservationList)
-
-    driver.quit()
+        login()
+        reservationList = getReserveList()
+        oldReservationList = {}
+        try:
+            oldReservationList = loadCSV("reserve.csv")
+        except FileNotFoundError:
+            pass
+        message = compareReservation(oldReservationList, reservationList)
+        sendNotification(token=credential.Token, message=message)
+        saveCSV("reserve.csv", reservationList)
+    finally:
+        driver.quit()
