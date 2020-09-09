@@ -19,6 +19,28 @@ def login():
     driver.find_element_by_xpath("/html/body/p/table[2]/tbody/tr[1]/td[2]/form/table/tbody/tr[2]/td[2]/input").click()
 
 
+def autoReserve(date, row, col):
+    if not all((date, row, col)): return "Debug", "予約可能な枠がないよ！"
+    try:
+        if driver.find_element_by_xpath("/html/body/p/table/tbody/tr[2]/td[5]").text != "0":
+            return "Debug", "予約可能な時限数を超えてるよ！"
+        cellID = str(row).zfill(2) + str(col - 1).zfill(2)
+        cell = driver.find_element_by_xpath(f"//*[@id=\"ID{cellID}\"]")
+        if cell.get_attribute("class") != "Have":
+            cell.click()
+        time.sleep(1)
+        nowURL = driver.current_url
+        if nowURL != credential.SUCCESS_URL:
+            if driver.find_element_by_xpath("/html/body/blockquote").get_attribute("class") == "confirm":
+                reserveMessage = f"{date}の{col}限の予約に成功したよ！🌸"
+            else:
+                reserveMessage = f"{date}の{col}限の予約に失敗しました😭\nおそらく予約重複です。"
+    except NoSuchElementException:
+        reserveMessage = f"[NoSuchElementException]{date}{col}限"
+
+    return "Success", reserveMessage
+
+
 def getReserveList():
     tableLists = driver.find_elements_by_xpath("/html/body/table[3]/tbody/tr")
     reservationList = {}
@@ -45,8 +67,15 @@ if __name__ == '__main__':
             oldReservationList = loadCSV("reserve.csv")
         except FileNotFoundError:
             pass
-        message = compareReservation(oldReservationList, reservationList)
-        sendNotification(token=credential.Token, message=message)
+        availableReservations = compareReservation(oldReservationList, reservationList)[0]
+        cell = compareReservation(oldReservationList, reservationList)[1]
+        reserveMessage = autoReserve(*cell)
+
+        send = Send(credential.CHANNEL_ACCESS_TOKEN, credential.CHENNEL_SECRET, credential.UID)
+        send.pushMessage(availableReservations)
+        if reserveMessage[0] == "Success":
+            send.pushMessage(reserveMessage[1])
+
         saveCSV("reserve.csv", reservationList)
     finally:
         driver.quit()
