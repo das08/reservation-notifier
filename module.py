@@ -1,10 +1,20 @@
 import csv
 import requests
 import datetime
+from linebot import (
+    LineBotApi, WebhookHandler
+)
+from linebot.exceptions import (
+    InvalidSignatureError
+)
+from linebot.models import (
+    MessageEvent, TextMessage, TextSendMessage, FlexSendMessage, PostbackEvent
+)
 
 now = datetime.datetime.utcnow() + datetime.timedelta(hours=9)
 PERIOD = ["9:40", "10:40", "11:40", "13:30", "14:30", "15:30", "16:30", "17:40", "18:40", "19:40"]
-MAX_DAYS = 7
+MAX_DAYS = 5
+WISHLISTS = ["09/01@1"]
 
 
 class Reservation:
@@ -18,8 +28,19 @@ class Reservation:
     def addDate(self, date):
         self.date = date
 
-    def showAllDailyReservation(self, dates):
-        print(dates, self.types)
+
+class Send:
+    def __init__(self, CHANNEL_ACCESS_TOKEN, CHANNEL_SECRET, UID):
+        self.line_bot_api = LineBotApi(CHANNEL_ACCESS_TOKEN)
+        self.handler = WebhookHandler(CHANNEL_SECRET)
+        self.UID = UID
+
+    def pushMessage(self, message):
+        if message == "": return
+        self.line_bot_api.push_message(
+            self.UID,
+            TextSendMessage(text=message),
+        )
 
 
 def saveCSV(filename, reservationList):
@@ -29,6 +50,7 @@ def saveCSV(filename, reservationList):
             writeEntry = [row]
             writeEntry.extend(reservationList[row].types)
             write.writerow(writeEntry)
+    return print(f"{now}")
 
 
 def loadCSV(filename):
@@ -46,7 +68,9 @@ def loadCSV(filename):
 def compareReservation(oldReservationList, latestReservationList):
     message = "\n" + now.strftime('%Y/%m/%d %H:%M:%S')
     message_cnt = 0
+    cell = (None, None, None)  # (date, row , col)
     isNewSlot = False
+
     for cnt, date in enumerate(latestReservationList):
         if date not in oldReservationList: continue
         if cnt > MAX_DAYS: break
@@ -55,22 +79,20 @@ def compareReservation(oldReservationList, latestReservationList):
 
         # Looking through period 1 to 10
         for i, (o, l) in enumerate(zip(oldEntryList, latestEntryList)):
-            if o == "Empty" and l == "Free":
-                message += "\n" + f"🟧{date}: {i}組目 {PERIOD[i - 1]}"
-                message_cnt += 1
-                isNewSlot = True
-            if o == "Free" and l == "Free":
-                message += "\n" + f"🟩{date}: {i}組目 {PERIOD[i - 1]}"
+            if l == "Free":
+                if o == "Empty":
+                    message += "\n" + f"🟧{date}: {i}組目 {PERIOD[i - 1]}"
+                    isNewSlot = True
+                if o == "Free":
+                    message += "\n" + f"🟩{date}: {i}組目 {PERIOD[i - 1]}"
+                if not all(cell):
+                    for wish in WISHLISTS:
+                        wishDate = wish.split("@")[0]
+                        wishPeriod = wish.split("@")[1]
+                        if date.split("(")[0] == wishDate and i == int(wishPeriod):
+                            cell = (date, cnt, i)
                 message_cnt += 1
 
     if message_cnt == 0: message = ""
     if isNewSlot: message = "🔴" + message
-
-    return message
-
-
-def sendNotification(token, message):
-    line_notify_api = 'https://notify-api.line.me/api/notify'
-    headers = {'Authorization': f'Bearer {token}'}
-    data = {'message': f'{message}'}
-    requests.post(line_notify_api, headers=headers, data=data)
+    return message, cell
