@@ -26,7 +26,7 @@ def autoReserve(date, row, col):
             return "Debug", "予約可能な時限数を超えてるよ！"
         cellID = str(row).zfill(2) + str(col - 1).zfill(2)
         cell = driver.find_element_by_xpath(f"//*[@id=\"ID{cellID}\"]")
-        if cell.get_attribute("class") != "Have":
+        if cell.get_attribute("class") == "Free":
             cell.click()
         time.sleep(1)
         nowURL = driver.current_url
